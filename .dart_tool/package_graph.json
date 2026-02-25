@@ -1,0 +1,21 @@
+{
+  "roots": [
+    "dart_streams_course"
+  ],
+  "packages": [
+    {
+      "name": "dart_streams_course",
+      "version": "1.0.0",
+      "dependencies": [],
+      "devDependencies": [
+        "lints"
+      ]
+    },
+    {
+      "name": "lints",
+      "version": "3.0.0",
+      "dependencies": []
+    }
+  ],
+  "configVersion": 1
+}

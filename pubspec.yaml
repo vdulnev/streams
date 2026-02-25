@@ -1,0 +1,9 @@
+name: dart_streams_course
+description: A comprehensive learning course for Dart Streams
+version: 1.0.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dev_dependencies:
+  lints: ^3.0.0
