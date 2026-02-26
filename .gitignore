@@ -1,0 +1,12 @@
+# Dart
+.dart_tool/
+.pub-cache/
+pubspec.lock
+
+# Build
+build/
+
+# IDE
+.vscode/
+.idea/
+*.iml
