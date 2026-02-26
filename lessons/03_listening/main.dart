@@ -39,7 +39,13 @@ Future<void> listenWithCallbacksDemo() async {
 
   final completer = Completer<void>();
 
-  Stream.fromIterable([1, 2, 3]).listen(
+  Stream.fromIterable([1, 2, 3]).map((item) {
+    if (item == 2) {
+      throw Exception('error');
+    } else {
+      return item;
+    }
+  }).listen(
     (data) => print('  data: $data'),
     onError: (Object e) => print('  error: $e'),
     onDone: () {
