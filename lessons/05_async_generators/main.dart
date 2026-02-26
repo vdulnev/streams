@@ -10,6 +10,7 @@
 /// and resumes automatically. It's the cleanest way to build custom streams.
 
 import 'dart:async';
+import 'dart:io';
 
 void header(String title) => print('\n--- $title ---');
 
@@ -68,10 +69,11 @@ Stream<int> fibonacci(int count) async* {
 
 Future<void> fibonacciDemo() async {
   header('3. Fibonacci sequence (first 10)');
+  stdout.write('  ');
   await for (final n in fibonacci(10)) {
     stdout.write('$n ');
   }
-  print();
+  print('');
 }
 
 // ─── 4. Infinite stream with cancellation ────────────────────────────────────
@@ -144,10 +146,11 @@ Future<void> treeWalkDemo() async {
     Node(3),
   ]);
 
+  stdout.write('  ');
   await for (final v in walk(tree)) {
     stdout.write('$v ');
   }
-  print();
+  print('');
 }
 
 // ─── 7. Sync generator vs async generator ────────────────────────────────────
@@ -171,43 +174,18 @@ Future<void> syncVsAsyncDemo() async {
   print('  async* (Stream):   ${await asyncRange(5).toList()}');
 }
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-// dart:io is not available in some environments; use a shim if needed
-final stdout = _StdoutShim();
-
-class _StdoutShim {
-  void write(Object v) => _buf.write(v);
-  final _buf = StringBuffer();
-}
-
-extension on _StdoutShim {
-  // ignore: unused_element
-  void flush() {
-    if (_buf.isNotEmpty) {
-      print(_buf.toString());
-      _buf.clear();
-    }
-  }
-}
-
-// Patch: replace stdout.write with a print helper for portability
-void _write(Object v) => _buf.write(v);
-final _buf = StringBuffer();
-void _flush() {
-  if (_buf.isNotEmpty) {
-    print(_buf.toString().trimRight());
-    _buf.clear();
-  }
-}
-
 // ─── entry point ─────────────────────────────────────────────────────────────
 
 void main() async {
   print('=== Lesson 5: Async Generators ===');
 
-  // Swap stdout.write for buffered printing (no dart:io needed)
-  await _runWithBuf();
+  await basicCounterDemo();
+  await yieldStarDemo();
+  await fibonacciDemo();
+  await infiniteStreamDemo();
+  await generatorWithErrorDemo();
+  await treeWalkDemo();
+  await syncVsAsyncDemo();
 
   print('''
 
@@ -224,62 +202,4 @@ Key takeaways:
 
 Next: Lesson 6 — StreamController (push data imperatively)
 ''');
-}
-
-Future<void> _runWithBuf() async {
-  // Redefine helpers to use buffered output
-  Future<void> run(String title, Future<void> Function() fn) async {
-    print('\n--- $title ---');
-    await fn();
-    _flush();
-  }
-
-  await run('1. Basic counter (1 to 5)', () async {
-    await for (final n in counter(start: 1, end: 5)) print('  $n');
-  });
-
-  await run('2. yield* — concat two streams', () async {
-    final combined = concat(
-      counter(start: 1, end: 3, delay: Duration(milliseconds: 50)),
-      counter(start: 10, end: 12, delay: Duration(milliseconds: 50)),
-    );
-    await for (final n in combined) print('  $n');
-  });
-
-  await run('3. Fibonacci sequence (first 10)', () async {
-    final buf = StringBuffer('  ');
-    await for (final n in fibonacci(10)) buf.write('$n ');
-    print(buf.toString().trimRight());
-  });
-
-  await run('4. Infinite sensor stream — take 6 readings', () async {
-    await for (final r in sensorReadings().take(6)) {
-      print('  temperature: ${r.toStringAsFixed(1)} °C');
-    }
-  });
-
-  await run(
-      '5. Generator that throws (caught with try/catch inside await for)',
-      () async {
-    try {
-      await for (final v in riskyStream()) print('  got: $v');
-    } on StateError catch (e) {
-      print('  caught: ${e.message}');
-    }
-  });
-
-  await run('6. Recursive tree walk with yield*', () async {
-    final tree = Node(1, [
-      Node(2, [Node(4), Node(5)]),
-      Node(3),
-    ]);
-    final buf = StringBuffer('  ');
-    await for (final v in walk(tree)) buf.write('$v ');
-    print(buf.toString().trimRight());
-  });
-
-  await run('7. sync* vs async*', () async {
-    print('  sync*  (Iterable): ${syncRange(5).toList()}');
-    print('  async* (Stream):   ${await asyncRange(5).toList()}');
-  });
 }
