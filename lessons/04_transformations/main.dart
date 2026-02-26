@@ -23,8 +23,7 @@ void header(String title) => print('\n--- $title ---');
 
 Future<void> mapDemo() async {
   header('map: double every number');
-  final stream = Stream.fromIterable([1, 2, 3, 4, 5])
-      .map((n) => n * 2);
+  final stream = Stream.fromIterable([1, 2, 3, 4, 5]).map((n) => n * 2);
 
   await for (final v in stream) {
     print('  $v');
@@ -51,8 +50,8 @@ Future<void> takeDemo() async {
   await for (final v in stream) print('  $v');
 
   header('takeWhile: stop when value >= 40');
-  final stream2 = Stream.fromIterable([10, 20, 30, 40, 50])
-      .takeWhile((n) => n < 40);
+  final stream2 =
+      Stream.fromIterable([10, 20, 30, 40, 50]).takeWhile((n) => n < 40);
   await for (final v in stream2) print('  $v');
 }
 
@@ -64,8 +63,8 @@ Future<void> skipDemo() async {
   await for (final v in stream) print('  $v');
 
   header('skipWhile: discard while value < 30');
-  final stream2 = Stream.fromIterable([10, 20, 30, 40, 50])
-      .skipWhile((n) => n < 30);
+  final stream2 =
+      Stream.fromIterable([10, 20, 30, 40, 50]).skipWhile((n) => n < 30);
   await for (final v in stream2) print('  $v');
 }
 
@@ -73,8 +72,8 @@ Future<void> skipDemo() async {
 
 Future<void> expandDemo() async {
   header('expand: one word → its characters');
-  final stream = Stream.fromIterable(['hi', 'bye'])
-      .expand((word) => word.split(''));
+  final stream =
+      Stream.fromIterable(['hi', 'bye']).expand((word) => word.split(''));
   await for (final ch in stream) print('  "$ch"');
 }
 
@@ -87,8 +86,7 @@ Future<String> fakeApiCall(int id) async {
 
 Future<void> asyncMapDemo() async {
   header('asyncMap: fetch user for each id (sequential)');
-  final stream = Stream.fromIterable([1, 2, 3])
-      .asyncMap(fakeApiCall);
+  final stream = Stream.fromIterable([1, 2, 3]).asyncMap(fakeApiCall);
   await for (final user in stream) {
     print('  fetched: $user');
   }
@@ -104,8 +102,8 @@ Stream<String> relatedUsers(String user) async* {
 
 Future<void> asyncExpandDemo() async {
   header('asyncExpand: expand each user into related users');
-  final stream = Stream.fromIterable(['alice', 'bob'])
-      .asyncExpand(relatedUsers);
+  final stream =
+      Stream.fromIterable(['alice', 'bob']).asyncExpand(relatedUsers);
   await for (final u in stream) {
     print('  $u');
   }
@@ -115,8 +113,7 @@ Future<void> asyncExpandDemo() async {
 
 Future<void> distinctDemo() async {
   header('distinct: remove consecutive duplicates');
-  final stream = Stream.fromIterable([1, 1, 2, 2, 2, 3, 1, 1])
-      .distinct();
+  final stream = Stream.fromIterable([1, 1, 2, 2, 2, 3, 1, 1]).distinct();
   await for (final v in stream) print('  $v');
 }
 
@@ -125,9 +122,9 @@ Future<void> distinctDemo() async {
 Future<void> chainingDemo() async {
   header('Chaining: numbers → square → keep >50 → take 4');
   final stream = Stream.fromIterable(List.generate(20, (i) => i + 1))
-      .map((n) => n * n)       // square
-      .where((n) => n > 50)    // keep large ones
-      .take(4);                 // only first 4
+      .map((n) => n * n) // square
+      .where((n) => n > 50) // keep large ones
+      .take(4); // only first 4
 
   await for (final v in stream) print('  $v');
 }
@@ -135,18 +132,23 @@ Future<void> chainingDemo() async {
 // ─── custom StreamTransformer ─────────────────────────────────────────────────
 
 /// A reusable transformer that multiplies every event by [factor].
-StreamTransformer<int, int> multiplyBy(int factor) {
+StreamTransformer<int, String> multiplyBy(int factor) {
   return StreamTransformer.fromHandlers(
-    handleData: (data, sink) => sink.add(data * factor),
-    handleError: (error, stack, sink) => sink.addError(error, stack),
+    handleData: (data, sink) => sink.add('${data * factor}'),
+    handleError: (error, stack, sink) => sink.add('Error: $error'),
     handleDone: (sink) => sink.close(),
   );
 }
 
 Future<void> transformerDemo() async {
   header('Custom StreamTransformer: ×3');
-  final stream = Stream.fromIterable([1, 2, 3, 4])
-      .transform(multiplyBy(3));
+  final stream = Stream.fromIterable([1, 2, 3, 4]).map((item) {
+    if (item == 3) {
+      throw Exception('error');
+    } else {
+      return item;
+    }
+  }).transform(multiplyBy(3));
   await for (final v in stream) print('  $v');
 }
 
