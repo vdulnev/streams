@@ -31,13 +31,18 @@ Future<void> basicControllerDemo() async {
     onDone: () => print('  stream closed'),
   );
 
+  // Capture the future BEFORE closing — asFuture() installs a new onDone
+  // handler, so it must be called while the stream is still open or the
+  // done event will never arrive and the future hangs forever.
+  final done = subscription.asFuture<void>();
+
   // Push events from anywhere (here, synchronously for brevity)
   controller.add('event A');
   controller.add('event B');
   controller.add('event C');
   await controller.close(); // sends the done event
 
-  await subscription.asFuture<void>(); // wait until listener is done
+  await done; // wait until listener has processed all events + onDone
 }
 
 // ─── 2. onListen / onCancel / onPause / onResume callbacks ───────────────────
@@ -115,9 +120,11 @@ Future<void> broadcastControllerDemo() async {
   });
 
   controller.add('late');
-  await controller.close();
 
-  await Future.wait([sub1.asFuture(), sub2.asFuture(), sub3.asFuture()]);
+  // Capture futures BEFORE closing — same rule as demo 1.
+  final done = Future.wait([sub1.asFuture(), sub2.asFuture(), sub3.asFuture()]);
+  await controller.close();
+  await done;
 
   print('  listener1 total: $results1');
   print('  listener2 total: $results2');
@@ -163,29 +170,31 @@ Future<void> bridgeDemo() async {
 Future<void> addStreamDemo() async {
   header('6. addStream: pipe a whole stream into a controller');
 
+  // addStream() feeds all events from a source stream into the controller.
+  // It returns a Future that completes when the source is fully drained.
+  //
+  // RULE: no add() / addError() / close() / addStream() calls are allowed
+  // while an addStream() is in progress — they all throw StateError.
+  // Always await addStream() before doing anything else.
+
   final controller = StreamController<int>();
-  final source = Stream.fromIterable([7, 8, 9]);
-
-  // addStream returns a Future that completes when the source is drained
-  final pipeCompleter = controller.addStream(source);
-  controller.add(10); // ERROR: you can't add while addStream is running
-
-  // Correct approach: await the pipe first, then add more
-  final controller2 = StreamController<int>();
   final items = <int>[];
-  controller2.stream.listen(items.add);
+  controller.stream.listen(items.add);
 
-  await controller2.addStream(Stream.fromIterable([1, 2, 3]));
-  controller2.add(99);
-  await controller2.close();
+  // Pipe first batch
+  await controller.addStream(Stream.fromIterable([1, 2, 3]));
+
+  // Safe to add individual events now
+  controller.add(99);
+
+  // Pipe a second batch
+  await controller.addStream(Stream.fromIterable([10, 20]));
+
+  await controller.close();
 
   // Give the listener a tick to drain
   await Future.delayed(Duration.zero);
   print('  items: $items');
-
-  // Clean up the first controller
-  await controller.close();
-  await pipeCompleter;
 }
 
 // ─── entry point ─────────────────────────────────────────────────────────────
