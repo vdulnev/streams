@@ -14,6 +14,8 @@
 
 import 'dart:async';
 
+import 'package:rxdart/rxdart.dart';
+
 void header(String title) => print('\n--- $title ---');
 
 // ─── 1. merge ────────────────────────────────────────────────────────────────
@@ -132,7 +134,7 @@ Future<void> combineLatestDemo() async {
 
 extension DebounceExtension<T> on Stream<T> {
   /// Emit only if [duration] has elapsed since the last event.
-  Stream<T> debounce(Duration duration) {
+  Stream<T> debounceManual(Duration duration) {
     Timer? timer;
     final controller = StreamController<T>.broadcast();
 
@@ -159,7 +161,7 @@ Future<void> debounceDemo() async {
   final results = <String>[];
 
   final sub = keystrokes.stream
-      .debounce(Duration(milliseconds: 150))
+      .debounceManual(Duration(milliseconds: 150))
       .listen((v) {
     results.add(v);
     print('  debounced emit: "$v"');
@@ -183,7 +185,7 @@ Future<void> debounceDemo() async {
 
 extension ThrottleExtension<T> on Stream<T> {
   /// Allow at most one event per [duration] window (leading edge).
-  Stream<T> throttle(Duration duration) {
+  Stream<T> throttleManual(Duration duration) {
     bool open = true;
     final controller = StreamController<T>.broadcast();
 
@@ -208,7 +210,7 @@ Future<void> throttleDemo() async {
   final source = Stream.periodic(Duration(milliseconds: 60), (i) => i).take(10);
   final results = <int>[];
 
-  await for (final v in source.throttle(Duration(milliseconds: 200))) {
+  await for (final v in source.throttleManual(Duration(milliseconds: 200))) {
     results.add(v);
     print('  throttled: $v');
   }
@@ -219,7 +221,7 @@ Future<void> throttleDemo() async {
 
 extension BufferExtension<T> on Stream<T> {
   /// Collect events into lists of [size].
-  Stream<List<T>> buffer(int size) async* {
+  Stream<List<T>> bufferManual(int size) async* {
     final batch = <T>[];
     await for (final event in this) {
       batch.add(event);
@@ -235,7 +237,7 @@ extension BufferExtension<T> on Stream<T> {
 Future<void> bufferDemo() async {
   header('6. buffer: group events into batches of 3');
   final stream = Stream.fromIterable(List.generate(8, (i) => i + 1));
-  await for (final batch in stream.buffer(3)) {
+  await for (final batch in stream.bufferManual(3)) {
     print('  batch: $batch');
   }
 }
@@ -244,7 +246,7 @@ Future<void> bufferDemo() async {
 
 extension SwitchMapExtension<T> on Stream<T> {
   /// For each event, start a new inner stream and cancel the previous one.
-  Stream<R> switchMap<R>(Stream<R> Function(T) mapper) {
+  Stream<R> switchMapManual<R>(Stream<R> Function(T) mapper) {
     final controller = StreamController<R>.broadcast();
     StreamSubscription<R>? innerSub;
 
@@ -278,7 +280,7 @@ Future<void> switchMapDemo() async {
   final results = <String>[];
 
   final sub = queries.stream
-      .switchMap(search)
+      .switchMapManual(search)
       .listen((r) {
     results.add(r);
     print('  $r');
@@ -299,7 +301,7 @@ Future<void> switchMapDemo() async {
 // ─── 8. scan (running accumulator) ───────────────────────────────────────────
 
 extension ScanExtension<T> on Stream<T> {
-  Stream<S> scan<S>(S seed, S Function(S acc, T event) combine) async* {
+  Stream<S> scanManual<S>(S seed, S Function(S acc, T event) combine) async* {
     var acc = seed;
     await for (final event in this) {
       acc = combine(acc, event);
@@ -311,16 +313,254 @@ extension ScanExtension<T> on Stream<T> {
 Future<void> scanDemo() async {
   header('8. scan: running sum');
   final stream = Stream.fromIterable([1, 2, 3, 4, 5])
-      .scan<int>(0, (acc, e) => acc + e);
+      .scanManual<int>(0, (acc, e) => acc + e);
   await for (final sum in stream) {
     print('  running sum: $sum');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART 2 — RxDart equivalents
+//
+// RxDart wraps Dart streams with a rich operator library modelled after
+// ReactiveX (RxJS / RxJava / RxSwift). Each demo below mirrors the manual
+// implementation above so you can compare the two side-by-side.
+//
+// Key types:
+//   Rx               — static factory methods (merge, zip, combineLatest…)
+//   BehaviorSubject  — broadcast StreamController that caches the last value
+//   PublishSubject   — standard broadcast StreamController
+//   ReplaySubject    — replays all past events to every new subscriber
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── rx.1. Rx.merge ───────────────────────────────────────────────────────────
+
+Future<void> rxMergeDemo() async {
+  header('rx.1. Rx.merge');
+
+  final stream = Rx.merge([
+    Stream.periodic(Duration(milliseconds: 100), (_) => 'A').take(3),
+    Stream.periodic(Duration(milliseconds: 150), (_) => 'B').take(3),
+  ]);
+
+  await for (final e in stream) print('  $e');
+}
+
+// ─── rx.2. Rx.zip ────────────────────────────────────────────────────────────
+
+Future<void> rxZipDemo() async {
+  header('rx.2. Rx.zip2');
+
+  final stream = Rx.zip2(
+    Stream.fromIterable(['A', 'B', 'C', 'D']),
+    Stream.fromIterable([1, 2, 3]),
+    (l, n) => '$l$n',
+  );
+
+  await for (final pair in stream) print('  $pair');
+}
+
+// ─── rx.3. Rx.combineLatest ──────────────────────────────────────────────────
+
+Future<void> rxCombineLatestDemo() async {
+  header('rx.3. Rx.combineLatest2');
+
+  final stream = Rx.combineLatest2(
+    Stream.periodic(Duration(milliseconds: 120), (i) => 20 + i).take(3),
+    Stream.periodic(Duration(milliseconds: 80), (i) => 50 + i * 5).take(4),
+    (t, h) => 'temp=$t°C hum=$h%',
+  );
+
+  await for (final reading in stream) print('  $reading');
+}
+
+// ─── rx.4. debounceTime ───────────────────────────────────────────────────────
+
+Future<void> rxDebounceDemo() async {
+  header('rx.4. debounceTime');
+
+  final keystrokes = StreamController<String>();
+  final results = <String>[];
+
+  final sub = keystrokes.stream
+      .debounceTime(Duration(milliseconds: 150))
+      .listen((v) {
+    results.add(v);
+    print('  debounced emit: "$v"');
+  });
+
+  for (final char in ['d', 'da', 'dar', 'dart']) {
+    keystrokes.add(char);
+    await Future.delayed(Duration(milliseconds: 40));
+  }
+  await Future.delayed(Duration(milliseconds: 300));
+
+  await keystrokes.close();
+  await sub.cancel();
+  print('  total emitted: ${results.length} (expected 1)');
+}
+
+// ─── rx.5. throttleTime ──────────────────────────────────────────────────────
+
+Future<void> rxThrottleDemo() async {
+  header('rx.5. throttleTime (leading edge)');
+
+  final source = Stream.periodic(Duration(milliseconds: 60), (i) => i).take(10);
+  final results = <int>[];
+
+  await for (final v in source.throttleTime(Duration(milliseconds: 200))) {
+    results.add(v);
+    print('  throttled: $v');
+  }
+  print('  total emitted: ${results.length} out of 10');
+}
+
+// ─── rx.6. bufferCount ───────────────────────────────────────────────────────
+
+Future<void> rxBufferDemo() async {
+  header('rx.6. bufferCount');
+
+  final stream = Stream.fromIterable(List.generate(8, (i) => i + 1))
+      .bufferCount(3);
+
+  await for (final batch in stream) print('  batch: $batch');
+}
+
+// ─── rx.7. switchMap ─────────────────────────────────────────────────────────
+
+Future<void> rxSwitchMapDemo() async {
+  header('rx.7. switchMap (rxdart built-in)');
+
+  final queries = StreamController<String>();
+  final results = <String>[];
+
+  // Use a Completer to wait for the result rather than relying on a fixed
+  // delay — rxdart's switchMap delivery and sub.cancel() can otherwise race.
+  final resultArrived = Completer<void>();
+
+  final sub = queries.stream.switchMap(search).listen((r) {
+    results.add(r);
+    print('  $r');
+    resultArrived.complete();
+  });
+
+  queries.add('d');
+  await Future.delayed(Duration(milliseconds: 30));
+  queries.add('da');
+  await Future.delayed(Duration(milliseconds: 30));
+  queries.add('dart'); // only this search will complete
+
+  await resultArrived.future; // wait for 'dart' result to arrive
+  await sub.cancel();
+  await queries.close();
+  print('  total results: ${results.length} (expected 1)');
+}
+
+// ─── rx.8. scan ──────────────────────────────────────────────────────────────
+
+Future<void> rxScanDemo() async {
+  header('rx.8. scan (rxdart — seed is 2nd arg, callback receives index too)');
+
+  // rxdart signature: scan<S>(S Function(S acc, T value, int index), S seed)
+  final stream = Stream.fromIterable([1, 2, 3, 4, 5])
+      .scan<int>((acc, e, _) => acc + e, 0);
+
+  await for (final sum in stream) print('  running sum: $sum');
+}
+
+// ─── rx.9. BehaviorSubject ───────────────────────────────────────────────────
+
+Future<void> behaviorSubjectDemo() async {
+  header('rx.9. BehaviorSubject — caches the last value for late subscribers');
+
+  final subject = BehaviorSubject<int>.seeded(0);
+
+  subject.add(1);
+  subject.add(2);
+  subject.add(3);
+
+  print('  current value: ${subject.value}');
+
+  // A new listener immediately receives the last cached value (3)
+  final received = <int>[];
+  final sub = subject.listen((v) {
+    received.add(v);
+    print('  late subscriber got: $v');
+  });
+
+  subject.add(4);
+  await Future.delayed(Duration.zero);
+
+  await sub.cancel();
+  await subject.close();
+  print('  received: $received  (3 replayed + 4 live)');
+}
+
+// ─── rx.10. PublishSubject ───────────────────────────────────────────────────
+
+Future<void> publishSubjectDemo() async {
+  header('rx.10. PublishSubject — broadcast, no caching');
+
+  final subject = PublishSubject<String>();
+
+  final log1 = <String>[];
+  final log2 = <String>[];
+
+  final sub1 = subject.listen((v) {
+    log1.add(v);
+    print('  sub1: $v');
+  });
+
+  subject.add('hello');
+
+  // sub2 subscribes AFTER 'hello' — does NOT receive it
+  final sub2 = subject.listen((v) {
+    log2.add(v);
+    print('  sub2: $v');
+  });
+
+  subject.add('world');
+  await Future.delayed(Duration.zero);
+
+  await sub1.cancel();
+  await sub2.cancel();
+  await subject.close();
+
+  print('  sub1 got: $log1');
+  print('  sub2 got: $log2  (missed "hello")');
+}
+
+// ─── rx.11. ReplaySubject ────────────────────────────────────────────────────
+
+Future<void> replaySubjectDemo() async {
+  header('rx.11. ReplaySubject — replays all past events to new subscribers');
+
+  final subject = ReplaySubject<int>();
+
+  subject.add(1);
+  subject.add(2);
+  subject.add(3);
+
+  // Late subscriber receives ALL past events immediately
+  final received = <int>[];
+  final sub = subject.listen((v) {
+    received.add(v);
+    print('  replayed: $v');
+  });
+
+  subject.add(4); // also received live
+  await Future.delayed(Duration.zero);
+
+  await sub.cancel();
+  await subject.close();
+  print('  total received: $received');
 }
 
 // ─── entry point ─────────────────────────────────────────────────────────────
 
 void main() async {
   print('=== Lesson 8: Advanced Stream Patterns ===');
+  print('\n── Part 1: Manual implementations ──');
 
   await mergeDemo();
   await zipDemo();
@@ -331,20 +571,37 @@ void main() async {
   await switchMapDemo();
   await scanDemo();
 
+  print('\n── Part 2: RxDart equivalents ──');
+
+  await rxMergeDemo();
+  await rxZipDemo();
+  await rxCombineLatestDemo();
+  await rxDebounceDemo();
+  await rxThrottleDemo();
+  await rxBufferDemo();
+  await rxSwitchMapDemo();
+  await rxScanDemo();
+  await behaviorSubjectDemo();
+  await publishSubjectDemo();
+  await replaySubjectDemo();
+
   print('''
 
 === End of Lesson 8 ===
 
-Pattern         │ Use case
-────────────────┼────────────────────────────────────────────────────
-merge           │ interleave two sources; order = arrival order
-zip             │ pair nth events; stops when shorter stream ends
-combineLatest   │ always-fresh pair; great for form validation
-debounce        │ search boxes, resize handlers — ignore bursts
-throttle        │ rate-limit button clicks, scroll events
-buffer          │ batch DB inserts, paginated UI
-switchMap       │ type-ahead search — only latest query matters
-scan            │ running totals, undo stacks, state machines
+Pattern              │ Manual (this file)        │ RxDart
+─────────────────────┼───────────────────────────┼───────────────────────
+merge                │ merge() helper fn          │ Rx.merge([...])
+zip                  │ zip() helper fn            │ Rx.zip2(a, b, fn)
+combineLatest        │ combineLatest() helper fn  │ Rx.combineLatest2(...)
+debounce             │ .debounceManual()          │ .debounceTime()
+throttle             │ .throttleManual()          │ .throttleTime()
+buffer by count      │ .bufferManual(n)           │ .bufferCount(n)
+switchMap            │ .switchMapManual()         │ .switchMap()
+scan / fold          │ .scanManual(seed, fn)      │ .scan(fn, seed)
+broadcast controller │ StreamController.broadcast │ PublishSubject
+cached last value    │ (manual BehaviorSubject)   │ BehaviorSubject
+replay all events    │ (manual ReplaySubject)     │ ReplaySubject
 
 Next: Lesson 9 — Real-world application: a simulated live chat system
 ''');
