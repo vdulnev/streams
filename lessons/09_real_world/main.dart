@@ -119,14 +119,6 @@ class ChatRoom {
 // Simulated bots
 // ═══════════════════════════════════════════════════════════════════════════
 
-const _rng = _ConstRng();
-
-class _ConstRng {
-  const _ConstRng();
-  // Deterministic "random" to avoid test flakiness
-  int nextInt(int max) => max ~/ 2;
-}
-
 final _real = Random(42);
 
 Stream<ChatMessage> bot(
