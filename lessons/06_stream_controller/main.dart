@@ -65,6 +65,7 @@ Future<void> callbacksDemo() async {
   controller.add(2); // buffered while paused
   await Future.delayed(Duration(milliseconds: 100)); // wait for resume
   controller.add(3);
+  await Future.delayed(Duration.zero); // let the event loop deliver event 3
 
   await sub.cancel();
   await controller.close();
